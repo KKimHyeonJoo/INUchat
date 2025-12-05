@@ -1,0 +1,21 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.INUchat" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/gray</item>
+        <item name="colorPrimaryVariant">@color/gray</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <!-- Customize your theme here. -->
+        <item name="android:windowLightStatusBar" tools:targetApi="m"> true</item>
+        <item name="toolbarStyle">@style/CustomToolBar</item>
+        <item name="homeAsUpIndicator">@drawable/ic_custom_back_button</item> <!-- 사용자 지정 백 버튼 이미지 지정 -->
+    </style>
+
+    <style name="CustomToolBar" parent="@style/Widget.AppCompat.Toolbar">
+        <item name="titleTextColor">#5f5f5f</item>
+        <item name="colorControlNormal">#5f5f5f</item> <!-- 뒤로 가기 버튼의 기본 색상을 변경 -->
+    </style>
+
+</resources>
