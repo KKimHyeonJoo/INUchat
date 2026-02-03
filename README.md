@@ -57,15 +57,40 @@
 
 본 프로젝트는 **Android 클라이언트**와 **Flask 서버** 간의 통신으로 이루어지며, 서버 내부적으로 **RAG 파이프라인**이 동작합니다.
 
-```mermaid
-graph LR
-    A[User (Android App)] -->|Question (POST /chat)| B[Flask Server]
-    B -->|Search Query| C[Vector Store (FAISS)]
-    C -->|Retrieve Docs| B
-    B -->|Prompt + Context| D[OpenAI GPT API]
-    D -->|Answer| B
-    B -->|Response| A
-```
+flowchart TD
+    %% 사용자 및 추론 영역 (기존 유지)
+    subgraph Inference_Phase ["🔍 기존 검색 및 답변 영역"]
+        User(👤 User) -->|Question| Retriever
+        Retriever -->|Search| FAISS[(🗄️ FAISS Vector Store)]
+        FAISS -->|Context| LLM[🤖 LLM (gpt-3.5-turbo)]
+        User -->|Prompt| LLM
+        LLM --> Answer[📝 Answer]
+    end
+
+    %% 데이터 수집 및 가공 영역 (신규 추가 및 수정)
+    subgraph ETL_Pipeline ["⚙️ 주기적 업데이트 (Batch Indexing) 파이프라인"]
+        Scheduler(⏰ Scheduler\n매일/매시간 트리거) -->|Start| Crawler
+        
+        subgraph Collection ["데이터 수집"]
+            Web[🏫 학교 공지사항\nWebsite] -->|HTTP Get| Crawler[🕷️ Web Crawler\nScraper]
+        end
+        
+        Crawler -->|Raw HTML| Dedup{♻️ 중복 제거\nDe-duplication}
+        
+        Dedup -->|New Content| Cleaner[🧹 Data Cleaner\n텍스트 추출]
+        Dedup -->|Exists| Skip[⛔ Skip]
+        
+        Cleaner -->|Clean Text| Splitter[📄 Text Splitter\nLangChain]
+        
+        Splitter -->|Chunks| Embed[🧠 OpenAI Embeddings]
+        Embed -->|Upsert Vectors| FAISS
+    end
+
+    %% 스타일링
+    style Scheduler fill:#f9f,stroke:#333,stroke-width:2px
+    style Crawler fill:#bbf,stroke:#333,stroke-width:2px
+    style Dedup fill:#ff9,stroke:#333,stroke-width:2px
+    style FAISS fill:#ddd,stroke:#333,stroke-width:4px
 
 ### RAG 파이프라인 상세
 
