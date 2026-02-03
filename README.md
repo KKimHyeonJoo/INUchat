@@ -66,20 +66,20 @@ flowchart TD
 
     %% 데이터 수집 및 가공 영역
     subgraph ETL_Pipeline ["⚙️ 데이터 파이프라인 (Batch Indexing)"]
-        Scheduler(⏰ Scheduler\nDaily Trigger) -->|Wake Up| Crawler
+        Scheduler("⏰ Scheduler\nDaily Trigger") -->|Wake Up| Crawler
         
         subgraph Collection ["Data Collection"]
-            Web[🏫 학교 공지사항\nWebsite] -->|HTTP Request| Crawler[🕷️ Web Crawler]
+            Web["🏫 학교 공지사항\nWebsite"] -->|HTTP Request| Crawler["🕷️ Web Crawler"]
         end
         
-        Crawler -->|Raw HTML| Dedup{♻️ 중복 검사\n(Check DB)}
+        Crawler -->|Raw HTML| Dedup{"♻️ 중복 검사\n(Check DB)"}
         
-        Dedup -->|New Post| Cleaner[🧹 Data Cleaner\n(Tag Removal)]
-        Dedup -->|Exists| Skip[⛔ Skip]
+        Dedup -->|New Post| Cleaner["🧹 Data Cleaner\n(Tag Removal)"]
+        Dedup -->|Exists| Skip["⛔ Skip"]
         
-        Cleaner -->|Clean Text| Splitter[📄 Text Splitter]
+        Cleaner -->|Clean Text| Splitter["📄 Text Splitter"]
         
-        Splitter -->|Chunks| Embed[🧠 OpenAI Embeddings]
+        Splitter -->|Chunks| Embed["🧠 OpenAI Embeddings"]
         Embed -->|Upsert| FAISS
     end
 
@@ -88,7 +88,6 @@ flowchart TD
     style Crawler fill:#bbf,stroke:#333,stroke-width:2px
     style Dedup fill:#ff9,stroke:#333,stroke-width:2px
     style FAISS fill:#ddd,stroke:#333,stroke-width:4px
-
 ```
 
 ### 🔄 Batch Indexing 파이프라인 상세
