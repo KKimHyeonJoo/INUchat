@@ -91,55 +91,68 @@ flowchart TD
 ```
 ```mermaid
 flowchart TD
-  %% ============ Shared Storage ============
-  IDX[(FAISS Vector Index)]
-  RAW[(Raw Docs / Snapshots)]
-  META[(Metadata / Change Log)]
+    %% =========================
+    %% 사용자 및 추론 영역
+    %% =========================
+    subgraph Inference_Phase ["🔍 검색 및 답변 (Real-time Inference)"]
+        User(👤 User) -->|Question| App[📱 Android App]
+        App -->|HTTPS JSON| API[🌐 Flask API Server\n(AWS EC2)]
 
-  %% ============ Online: Real-time Inference ============
-  subgraph ONLINE[Real-time Inference - Search and Answer]
-    USER[User] -->|Question| APP[Android App]
-    APP -->|HTTPS JSON| API[Flask API Server - AWS EC2]
+        API --> Preprocess["🧩 Query Preprocess\n(KO/EN 감지 · 약어/은어 매핑)"]
+        Preprocess --> Retriever["🔎 Retriever\n(Top-K Similarity Search)"]
+        Retriever -->|Similarity Search| FAISS[(🗄️ FAISS Vector Store)]
 
-    API --> PRE[Preprocess - KO/EN detect - slang/abbrev mapping]
-    PRE --> QEMB[Embed Query]
-    QEMB --> RET[FAISS Retrieve TopK]
-    RET --> RER[Reranker - Re-rank TopK to TopN]
-    RER --> CTX[Context Builder]
-    CTX --> LLM[LLM - GPT-3.5-turbo]
-    LLM --> ANS[Answer]
-    ANS --> APP
-  end
+        FAISS -->|Top-K Chunks| Reranker["🎯 Reranker\n(Top-N Re-rank)"]
+        Reranker -->|Best Context| Prompt["🧾 Prompt Builder\n(Context + System Rules)"]
 
-  %% Optional: tool-based real-time scrape (e.g., cafeteria/menu)
-  API -->|If needs realtime page| TOOL[Realtime Web Scraper]
-  TOOL --> API
+        User -->|Prompt| Prompt
+        Prompt --> LLM[🤖 GPT-3.5-turbo]
+        LLM --> Answer[📝 Answer]
+    end
 
-  %% Observability
-  subgraph OBS[Observability]
-    API --> TRACE[LangSmith Tracing]
-    TRACE --> EVAL[Auto Evaluator - Answer/Retrieval Score]
-  end
+    %% =========================
+    %% 데이터 수집 및 가공 영역
+    %% =========================
+    subgraph ETL_Pipeline ["⚙️ 데이터 파이프라인 (Daily Index Update)"]
+        Scheduler("⏰ Scheduler\nDaily Trigger") -->|Wake Up| Crawler
 
-  %% ============ Offline: Daily ETL / Index Update ============
-  subgraph OFFLINE[Batch Indexing - Daily Update]
-    SCH[Scheduler - Daily Trigger] --> CRAWL[Crawler - INU Website PDF/HTML]
-    CRAWL --> DIFF[Change Detect - hash / last-modified]
-    DIFF -->|new or changed| PARSE[Parser - PDF PyPDFLoader / HTML Parser]
-    DIFF -->|no change| SKIP[Skip]
+        subgraph Collection ["Data Collection"]
+            Web["🏫 INU 홈페이지\n공지 · 규정 · 학칙(PDF/HTML)"] -->|HTTP Request| Crawler["🕷️ Web Crawler"]
+        end
 
-    PARSE --> CLEAN[Cleaner - remove tags / normalize text]
-    CLEAN --> SPLIT[Text Splitter - chunking]
-    SPLIT --> DEMB[Embed Chunks]
-    DEMB --> UPD[FAISS Update - rebuild or upsert]
-    UPD --> IDX
+        Crawler -->|Raw HTML/PDF| Dedup{"♻️ 변경/중복 검사\n(Hash/DB)"}
 
-    CRAWL --> RAW
-    DIFF --> META
-  end
+        Dedup -->|New/Updated| Loader["📚 Loader\n(PDF: PyPDFLoader\nHTML: Parser)"]
+        Dedup -->|No Change| Skip["⛔ Skip"]
 
-  %% ============ Shared index used by retriever ============
-  RET -->|load| IDX
+        Loader --> Cleaner["🧹 Data Cleaner\n(Tag Removal/Normalize)"]
+        Cleaner --> Splitter["📄 Text Splitter\n(Chunking)"]
+        Splitter --> Embed["🧠 Embeddings"]
+        Embed -->|Upsert / Rebuild| FAISS
+    end
+
+    %% =========================
+    %% 관측 및 평가 영역
+    %% =========================
+    subgraph Observability ["📈 관측/평가 (LangSmith)"]
+        API --> Trace[🧭 Tracing]
+        Retriever --> Trace
+        Reranker --> Trace
+        LLM --> Trace
+        Trace --> Eval["✅ Auto-Evaluator\n(Answer Score · Retrieval Score)"]
+    end
+
+    %% =========================
+    %% 스타일링
+    %% =========================
+    style Scheduler fill:#f9f,stroke:#333,stroke-width:2px
+    style Crawler fill:#bbf,stroke:#333,stroke-width:2px
+    style Dedup fill:#ff9,stroke:#333,stroke-width:2px
+    style FAISS fill:#ddd,stroke:#333,stroke-width:4px
+    style Reranker fill:#cfc,stroke:#333,stroke-width:2px
+    style LLM fill:#fdd,stroke:#333,stroke-width:2px
+    style API fill:#eef,stroke:#333,stroke-width:2px
+
 ```
 
 ### 🔄 Batch Indexing 파이프라인 상세
