@@ -92,45 +92,39 @@ flowchart TD
 
 ```mermaid
 flowchart TB
-  %% ============ Clients ============
-  U[사용자] --> A[Android App]
-  A -->|HTTPS / JSON| API[Flask API Server<br/>(AWS EC2)]
+  U[User] --> A[Android App]
+  A -->|HTTPS JSON| API[Flask API Server (AWS EC2)]
 
-  %% ============ Online Serving ============
-  subgraph ONLINE[Online: 실시간 질의 응답]
-    API --> QP[Query Preprocess<br/>- KO/EN 감지<br/>- 대학 특화 약어/은어 매핑<br/>(과사/학식/전번...)]
-    QP -->|embed| EMB1[Embedding Model]
-    EMB1 --> RET[FAISS Retriever<br/>Top-K Similarity Search]
-    RET --> RR[Reranker<br/>(Cross-Encoder or LLM Rerank)<br/>Top-N 재정렬]
-    RR --> CTX[Context Builder<br/>선정 문서/스니펫 결합]
-    CTX --> PR[Prompt Template<br/>(KO/EN, 약어 규칙 포함)]
-    PR --> LLM[LLM (GPT-3.5-turbo 등)]
-    LLM --> POST[Postprocess<br/>포맷/검증/근거 기반 응답]
+  subgraph ONLINE[Online - Real-time QnA]
+    API --> QP[Query Preprocess - KO EN detect - slang mapping]
+    QP --> EMB1[Embedding Model]
+    EMB1 --> RET[FAISS Retriever - Top K similarity search]
+    RET --> RR[Reranker - re-rank Top K to Top N]
+    RR --> CTX[Context Builder]
+    CTX --> PR[Prompt Template - KO EN policy - abbreviation rules]
+    PR --> LLM[LLM - GPT 3.5 turbo]
+    LLM --> POST[Postprocess - format - citations]
     POST --> API
   end
 
-  %% ============ Special Realtime Tool ============
-  API -->|질문에 "학식" 포함 시| MENU[INU 학식 페이지 실시간 Scrape<br/>(requests + BeautifulSoup)]
+  API -->|If query includes cafeteria menu| MENU[Real-time Scraper - Cafeteria Page]
   MENU --> API
 
-  %% ============ Observability ============
-  subgraph OBS[Observability / Evaluation]
-    API --> LS[LangSmith Tracing & Auto-Evaluator]
+  subgraph OBS[Observability]
+    API --> LS[LangSmith - Tracing and Auto Evaluator]
   end
 
-  %% ============ Offline Ingestion ============
-  subgraph OFFLINE[Offline: 매일 데이터 갱신 파이프라인]
-    SCH[Scheduler<br/>(EC2 cron or EventBridge)] --> CR[INU 홈페이지 크롤러<br/>PDF/HTML 수집]
-    CR --> CHG[Change Detector<br/>해시/Last-Modified 비교]
-    CHG -->|변경 있음| PARSE[Parser<br/>PDF: PyPDFLoader<br/>HTML: BeautifulSoup]
-    PARSE --> SPLIT[Chunking / Cleaning<br/>(문단/조항 단위)]
+  subgraph OFFLINE[Offline - Daily Index Update]
+    SCH[Scheduler - cron or EventBridge] --> CR[Homepage Crawler - PDF and HTML collect]
+    CR --> CHG[Change Detector - hash or last modified]
+    CHG -->|changed| PARSE[Parser - PDF PyPDFLoader - HTML BeautifulSoup]
+    PARSE --> SPLIT[Chunking and Cleaning]
     SPLIT --> EMB2[Embedding Model]
-    EMB2 --> UPD[Index Update<br/>FAISS rebuild or incremental add]
+    EMB2 --> UPD[FAISS Update - rebuild or incremental]
     UPD --> IDX[(FAISS Index Files)]
-    CR --> RAW[(Raw Docs / Snapshots)]
+    CR --> RAW[(Raw Docs Snapshots)]
   end
 
-  %% shared storage
   RET <-->|load| IDX
 ```
 
