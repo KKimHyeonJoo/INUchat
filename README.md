@@ -90,6 +90,50 @@ flowchart TD
     style FAISS fill:#ddd,stroke:#333,stroke-width:4px
 ```
 
+```mermaid
+flowchart TB
+  %% ============ Clients ============
+  U[사용자] --> A[Android App]
+  A -->|HTTPS / JSON| API[Flask API Server<br/>(AWS EC2)]
+
+  %% ============ Online Serving ============
+  subgraph ONLINE[Online: 실시간 질의 응답]
+    API --> QP[Query Preprocess<br/>- KO/EN 감지<br/>- 대학 특화 약어/은어 매핑<br/>(과사/학식/전번...)]
+    QP -->|embed| EMB1[Embedding Model]
+    EMB1 --> RET[FAISS Retriever<br/>Top-K Similarity Search]
+    RET --> RR[Reranker<br/>(Cross-Encoder or LLM Rerank)<br/>Top-N 재정렬]
+    RR --> CTX[Context Builder<br/>선정 문서/스니펫 결합]
+    CTX --> PR[Prompt Template<br/>(KO/EN, 약어 규칙 포함)]
+    PR --> LLM[LLM (GPT-3.5-turbo 등)]
+    LLM --> POST[Postprocess<br/>포맷/검증/근거 기반 응답]
+    POST --> API
+  end
+
+  %% ============ Special Realtime Tool ============
+  API -->|질문에 "학식" 포함 시| MENU[INU 학식 페이지 실시간 Scrape<br/>(requests + BeautifulSoup)]
+  MENU --> API
+
+  %% ============ Observability ============
+  subgraph OBS[Observability / Evaluation]
+    API --> LS[LangSmith Tracing & Auto-Evaluator]
+  end
+
+  %% ============ Offline Ingestion ============
+  subgraph OFFLINE[Offline: 매일 데이터 갱신 파이프라인]
+    SCH[Scheduler<br/>(EC2 cron or EventBridge)] --> CR[INU 홈페이지 크롤러<br/>PDF/HTML 수집]
+    CR --> CHG[Change Detector<br/>해시/Last-Modified 비교]
+    CHG -->|변경 있음| PARSE[Parser<br/>PDF: PyPDFLoader<br/>HTML: BeautifulSoup]
+    PARSE --> SPLIT[Chunking / Cleaning<br/>(문단/조항 단위)]
+    SPLIT --> EMB2[Embedding Model]
+    EMB2 --> UPD[Index Update<br/>FAISS rebuild or incremental add]
+    UPD --> IDX[(FAISS Index Files)]
+    CR --> RAW[(Raw Docs / Snapshots)]
+  end
+
+  %% shared storage
+  RET <-->|load| IDX
+```
+
 ### 🔄 Batch Indexing 파이프라인 상세
 
 1. **Scheduler:** 매일 지정된 시간(예: 09:00, 18:00)에 업데이트 스크립트 실행
