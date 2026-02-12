@@ -92,40 +92,65 @@ flowchart TD
 
 ```mermaid
 flowchart TB
-  U[User] --> A[Android App]
-  A -->|HTTPS JSON| API[Flask API Server (AWS EC2)]
+  U[User];
+  A[Android App];
+  API[Flask API Server AWS EC2];
 
-  subgraph ONLINE[Online - Real-time QnA]
-    API --> QP[Query Preprocess - KO EN detect - slang mapping]
-    QP --> EMB1[Embedding Model]
-    EMB1 --> RET[FAISS Retriever - Top K similarity search]
-    RET --> RR[Reranker - re-rank Top K to Top N]
-    RR --> CTX[Context Builder]
-    CTX --> PR[Prompt Template - KO EN policy - abbreviation rules]
-    PR --> LLM[LLM - GPT 3.5 turbo]
-    LLM --> POST[Postprocess - format - citations]
-    POST --> API
-  end
+  U --> A;
+  A -->|HTTPS JSON| API;
 
-  API -->|If query includes cafeteria menu| MENU[Real-time Scraper - Cafeteria Page]
-  MENU --> API
+  subgraph ONLINE[Online Real time QnA]
+    QP[Query preprocess KO EN detect slang mapping];
+    EMB1[Embedding model];
+    RET[FAISS retriever Top K];
+    RR[Reranker Top N];
+    CTX[Context builder];
+    PR[Prompt template KO EN policy abbrev rules];
+    LLM[LLM GPT 3.5 turbo];
+    POST[Postprocess formatting citations];
+
+    API --> QP;
+    QP --> EMB1;
+    EMB1 --> RET;
+    RET --> RR;
+    RR --> CTX;
+    CTX --> PR;
+    PR --> LLM;
+    LLM --> POST;
+    POST --> API;
+  end;
+
+  MENU[Real time scraper Cafeteria page];
+  API -->|If query includes cafeteria menu| MENU;
+  MENU --> API;
 
   subgraph OBS[Observability]
-    API --> LS[LangSmith - Tracing and Auto Evaluator]
-  end
+    LS[LangSmith tracing auto evaluator];
+    API --> LS;
+  end;
 
-  subgraph OFFLINE[Offline - Daily Index Update]
-    SCH[Scheduler - cron or EventBridge] --> CR[Homepage Crawler - PDF and HTML collect]
-    CR --> CHG[Change Detector - hash or last modified]
-    CHG -->|changed| PARSE[Parser - PDF PyPDFLoader - HTML BeautifulSoup]
-    PARSE --> SPLIT[Chunking and Cleaning]
-    SPLIT --> EMB2[Embedding Model]
-    EMB2 --> UPD[FAISS Update - rebuild or incremental]
-    UPD --> IDX[(FAISS Index Files)]
-    CR --> RAW[(Raw Docs Snapshots)]
-  end
+  subgraph OFFLINE[Offline Daily index update]
+    SCH[Scheduler cron or EventBridge];
+    CR[Homepage crawler collect PDF HTML];
+    CHG[Change detector hash last modified];
+    PARSE[Parser PDF PyPDFLoader HTML BeautifulSoup];
+    SPLIT[Chunking cleaning];
+    EMB2[Embedding model];
+    UPD[FAISS update rebuild or incremental];
+    IDX[FAISS index files];
+    RAW[Raw docs snapshots];
 
-  RET <-->|load| IDX
+    SCH --> CR;
+    CR --> CHG;
+    CHG -->|changed| PARSE;
+    PARSE --> SPLIT;
+    SPLIT --> EMB2;
+    EMB2 --> UPD;
+    UPD --> IDX;
+    CR --> RAW;
+  end;
+
+  RET -->|load| IDX;
 ```
 
 ### 🔄 Batch Indexing 파이프라인 상세
