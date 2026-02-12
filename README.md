@@ -152,6 +152,47 @@ flowchart TB
 
   RET -->|load| IDX;
 ```
+```mermaid
+flowchart TB
+  U[User] --> APP[Android App]
+  APP -->|HTTPS JSON| API[Flask API on AWS EC2]
+
+  %% ---------------- Online Serving ----------------
+  subgraph ONLINE[Online - RAG Serving]
+    API --> PRE[Preprocess: KO/EN detect + slang/abbrev mapping]
+    PRE --> E1[Embed query]
+    E1 --> RET[FAISS retrieve TopK]
+    RET --> RER[Reranker re-rank to TopN]
+    RER --> CTX[Build context]
+    CTX --> GEN[LLM generate answer]
+    GEN --> POST[Postprocess: format + citations]
+    POST --> API
+  end
+
+  %% optional tool branch (e.g., cafeteria)
+  API -->|cafeteria/menu query| TOOL[Real-time scraper]
+  TOOL --> API
+
+  %% ---------------- Observability ----------------
+  subgraph OBS[Observability]
+    API --> LS[LangSmith tracing + auto evaluation]
+  end
+
+  %% ---------------- Offline Update ----------------
+  subgraph OFFLINE[Offline - Daily Index Update]
+    SCH[Daily scheduler: cron or EventBridge] --> CR[Crawler: INU site PDF/HTML]
+    CR --> DIFF[Change detect: hash or last-modified]
+    DIFF -->|changed| PARSE[Parse: PDF PyPDFLoader / HTML BeautifulSoup]
+    PARSE --> CHUNK[Chunking + cleaning]
+    CHUNK --> E2[Embed docs]
+    E2 --> BUILD[FAISS build/update]
+    BUILD --> IDX[(FAISS index files)]
+    CR --> RAW[(Raw docs snapshots)]
+  end
+
+  %% shared index
+  RET -->|load| IDX
+```
 
 ### 🔄 Batch Indexing 파이프라인 상세
 
