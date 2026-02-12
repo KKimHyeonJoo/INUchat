@@ -89,108 +89,56 @@ flowchart TD
     style Dedup fill:#ff9,stroke:#333,stroke-width:2px
     style FAISS fill:#ddd,stroke:#333,stroke-width:4px
 ```
-
 ```mermaid
-flowchart TB
-  U[User];
-  A[Android App];
-  API[Flask API Server AWS EC2];
+flowchart TD
+  %% ============ Shared Storage ============
+  IDX[(FAISS Vector Index)]
+  RAW[(Raw Docs / Snapshots)]
+  META[(Metadata / Change Log)]
 
-  U --> A;
-  A -->|HTTPS JSON| API;
+  %% ============ Online: Real-time Inference ============
+  subgraph ONLINE[Real-time Inference - Search and Answer]
+    USER[User] -->|Question| APP[Android App]
+    APP -->|HTTPS JSON| API[Flask API Server - AWS EC2]
 
-  subgraph ONLINE[Online Real time QnA]
-    QP[Query preprocess KO EN detect slang mapping];
-    EMB1[Embedding model];
-    RET[FAISS retriever Top K];
-    RR[Reranker Top N];
-    CTX[Context builder];
-    PR[Prompt template KO EN policy abbrev rules];
-    LLM[LLM GPT 3.5 turbo];
-    POST[Postprocess formatting citations];
-
-    API --> QP;
-    QP --> EMB1;
-    EMB1 --> RET;
-    RET --> RR;
-    RR --> CTX;
-    CTX --> PR;
-    PR --> LLM;
-    LLM --> POST;
-    POST --> API;
-  end;
-
-  MENU[Real time scraper Cafeteria page];
-  API -->|If query includes cafeteria menu| MENU;
-  MENU --> API;
-
-  subgraph OBS[Observability]
-    LS[LangSmith tracing auto evaluator];
-    API --> LS;
-  end;
-
-  subgraph OFFLINE[Offline Daily index update]
-    SCH[Scheduler cron or EventBridge];
-    CR[Homepage crawler collect PDF HTML];
-    CHG[Change detector hash last modified];
-    PARSE[Parser PDF PyPDFLoader HTML BeautifulSoup];
-    SPLIT[Chunking cleaning];
-    EMB2[Embedding model];
-    UPD[FAISS update rebuild or incremental];
-    IDX[FAISS index files];
-    RAW[Raw docs snapshots];
-
-    SCH --> CR;
-    CR --> CHG;
-    CHG -->|changed| PARSE;
-    PARSE --> SPLIT;
-    SPLIT --> EMB2;
-    EMB2 --> UPD;
-    UPD --> IDX;
-    CR --> RAW;
-  end;
-
-  RET -->|load| IDX;
-```
-```mermaid
-flowchart TB
-  U[User] --> APP[Android App]
-  APP -->|HTTPS JSON| API[Flask API on AWS EC2]
-
-  %% ---------------- Online Serving ----------------
-  subgraph ONLINE[Online - RAG Serving]
-    API --> PRE[Preprocess: KO/EN detect + slang/abbrev mapping]
-    PRE --> E1[Embed query]
-    E1 --> RET[FAISS retrieve TopK]
-    RET --> RER[Reranker re-rank to TopN]
-    RER --> CTX[Build context]
-    CTX --> GEN[LLM generate answer]
-    GEN --> POST[Postprocess: format + citations]
-    POST --> API
+    API --> PRE[Preprocess - KO/EN detect - slang/abbrev mapping]
+    PRE --> QEMB[Embed Query]
+    QEMB --> RET[FAISS Retrieve TopK]
+    RET --> RER[Reranker - Re-rank TopK to TopN]
+    RER --> CTX[Context Builder]
+    CTX --> LLM[LLM - GPT-3.5-turbo]
+    LLM --> ANS[Answer]
+    ANS --> APP
   end
 
-  %% optional tool branch (e.g., cafeteria)
-  API -->|cafeteria/menu query| TOOL[Real-time scraper]
+  %% Optional: tool-based real-time scrape (e.g., cafeteria/menu)
+  API -->|If needs realtime page| TOOL[Realtime Web Scraper]
   TOOL --> API
 
-  %% ---------------- Observability ----------------
+  %% Observability
   subgraph OBS[Observability]
-    API --> LS[LangSmith tracing + auto evaluation]
+    API --> TRACE[LangSmith Tracing]
+    TRACE --> EVAL[Auto Evaluator - Answer/Retrieval Score]
   end
 
-  %% ---------------- Offline Update ----------------
-  subgraph OFFLINE[Offline - Daily Index Update]
-    SCH[Daily scheduler: cron or EventBridge] --> CR[Crawler: INU site PDF/HTML]
-    CR --> DIFF[Change detect: hash or last-modified]
-    DIFF -->|changed| PARSE[Parse: PDF PyPDFLoader / HTML BeautifulSoup]
-    PARSE --> CHUNK[Chunking + cleaning]
-    CHUNK --> E2[Embed docs]
-    E2 --> BUILD[FAISS build/update]
-    BUILD --> IDX[(FAISS index files)]
-    CR --> RAW[(Raw docs snapshots)]
+  %% ============ Offline: Daily ETL / Index Update ============
+  subgraph OFFLINE[Batch Indexing - Daily Update]
+    SCH[Scheduler - Daily Trigger] --> CRAWL[Crawler - INU Website PDF/HTML]
+    CRAWL --> DIFF[Change Detect - hash / last-modified]
+    DIFF -->|new or changed| PARSE[Parser - PDF PyPDFLoader / HTML Parser]
+    DIFF -->|no change| SKIP[Skip]
+
+    PARSE --> CLEAN[Cleaner - remove tags / normalize text]
+    CLEAN --> SPLIT[Text Splitter - chunking]
+    SPLIT --> DEMB[Embed Chunks]
+    DEMB --> UPD[FAISS Update - rebuild or upsert]
+    UPD --> IDX
+
+    CRAWL --> RAW
+    DIFF --> META
   end
 
-  %% shared index
+  %% ============ Shared index used by retriever ============
   RET -->|load| IDX
 ```
 
