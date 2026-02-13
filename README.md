@@ -91,45 +91,58 @@ flowchart TD
 ```
 ```mermaid
 flowchart TD
+    %% =========================
     %% 1. 스케줄링 영역
-    subgraph Scheduling ["⏰ 주기적 실행 (Scheduling)"]
-        Timer("📅 Scheduler\n(Interval: 2~3 Days)") -->|Trigger| Crawler
+    %% =========================
+    subgraph Scheduling["⏰ Scheduling (Every 2~3 Days)"]
+        SCH[Scheduler] -->|Trigger| CRAWLER
     end
 
+    %% =========================
     %% 2. 수집 영역
-    subgraph Collection ["📥 데이터 수집 (Multi-Format Crawling)"]
-        Crawler("🕷️ 통합 크롤러\n(BS4 + Requests)") -->|1. Visit Page| WebPage("🏫 공지사항 페이지")
-        
-        WebPage -->|Scrape Text| HTML_Content("📄 HTML 본문\n(Text)")
-        WebPage -->|Download Files| Attachments("📎 첨부 파일\n(.docx, .pdf)")
+    %% =========================
+    subgraph Collection["📥 Data Collection"]
+        CRAWLER[Crawler BS4 + Requests] -->|Visit| PAGE[INU Website Board]
+        PAGE -->|Extract date| DATE[Post date or modified date]
+        PAGE -->|Download| FILES[Attachments PDF DOCX HWP]
+        PAGE -->|Scrape| HTML[HTML content]
     end
 
-    %% 3. 전처리 및 로딩 영역
-    subgraph Processing ["🛠️ 데이터 가공 (File Loading)"]
-        Attachments --".docx / .doc"--> WordLoader("📝 Word Loader\n(Unstructured / Docx2txt)")
-        Attachments --".pdf"--> PDFLoader("📑 PyPDFLoader")
-        HTML_Content --> HTMLLoader("🌐 HTML Cleaner")
-        
-        WordLoader --> MergedData
-        PDFLoader --> MergedData
-        HTMLLoader --> MergedData("📦 통합 텍스트 데이터")
+    %% =========================
+    %% 3. 날짜 기반 변경 감지
+    %% =========================
+    subgraph Detection["📅 Change Detection"]
+        DATE --> CMP{Is date newer than DB}
+        CMP -->|Yes| PROCESS
+        CMP -->|No| SKIP[Skip]
     end
 
-    %% 4. 중복 제거 및 저장 영역
-    subgraph Storage ["💾 임베딩 및 저장 (Upsert)"]
-        MergedData --> HashCheck{"♻️ 변경 감지\n(Check File Hash)"}
-        
-        HashCheck --"New / Updated"--> Splitter("✂️ Text Splitter")
-        HashCheck --"No Change"--> Skip("⛔ Skip")
-        
-        Splitter --> Embed("🧠 BGE-M3\n(Local Embedding)")
-        Embed -->|Upsert| FAISS("🗄️ FAISS Index\n(Update)")
+    %% =========================
+    %% 4. 전처리 영역
+    %% =========================
+    subgraph Processing["🛠 File Loading and Cleaning"]
+        FILES --> WORD[Word Loader]
+        FILES --> PDF[PDF Loader]
+        HTML --> HTMLC[HTML Cleaner]
+        WORD --> MERGE
+        PDF --> MERGE
+        HTMLC --> MERGE[Merge text]
+        PROCESS --> MERGE
     end
 
-    %% 스타일링
-    style Timer fill:#f9f,stroke:#333,stroke-width:2px
-    style Attachments fill:#ffcc99,stroke:#333,stroke-width:2px
-    style WordLoader fill:#99ccff,stroke:#333,stroke-width:2px
+    %% =========================
+    %% 5. 임베딩 및 저장
+    %% =========================
+    subgraph Storage["💾 Embedding and FAISS Update"]
+        MERGE --> SPLIT[Text Splitter]
+        SPLIT --> EMB[Embedding Model]
+        EMB -->|Upsert| FAISS[(FAISS Index)]
+    end
+
+    %% 스타일
+    style SCH fill:#f9f,stroke:#333,stroke-width:2px
+    style FILES fill:#ffcc99,stroke:#333,stroke-width:2px
+    style WORD fill:#99ccff,stroke:#333,stroke-width:2px
     style FAISS fill:#ddd,stroke:#333,stroke-width:4px
 
 ```
