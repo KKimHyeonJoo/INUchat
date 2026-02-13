@@ -94,15 +94,15 @@ flowchart TD
     %% 사용자 및 추론 영역
     subgraph Inference_Phase ["🔍 2-Stage 검색 (BGE-M3 + Reranker)"]
         User(👤 User) -->|Question| Retriever
-        Retriever -->|1. Wide Search (Top-30)| FAISS[(🗄️ FAISS Vector Store)]
+        Retriever -->|"1. Wide Search (Top-30)"| FAISS[("🗄️ FAISS Vector Store")]
         
         FAISS -->|Candidates| Reranker["⚖️ BGE-Reranker-V2\n(Cross-Encoder)"]
         
-        Reranker -->|2. Re-scoring (Top-3)| Context_Filter{Top-K Selection}
+        Reranker -->|"2. Re-scoring (Top-3)"| Context_Filter{"Top-K Selection"}
         
-        Context_Filter -->|Final Context| LLM[🤖 GPT-3.5-turbo]
+        Context_Filter -->|Final Context| LLM["🤖 GPT-3.5-turbo"]
         User -->|Prompt| LLM
-        LLM --> Answer[📝 Answer]
+        LLM --> Answer["📝 Answer"]
     end
 
     %% 데이터 수집 및 가공 영역
