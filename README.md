@@ -91,45 +91,45 @@ flowchart TD
 ```
 ```mermaid
 flowchart TD
-    %% 사용자 및 추론 영역
-    subgraph Inference_Phase ["🔍 2-Stage 검색 (BGE-M3 + Reranker)"]
-        User(👤 User) -->|Question| Retriever
-        Retriever -->|"1. Wide Search (Top-30)"| FAISS[("🗄️ FAISS Vector Store")]
-        
-        FAISS -->|Candidates| Reranker["⚖️ BGE-Reranker-V2\n(Cross-Encoder)"]
-        
-        Reranker -->|"2. Re-scoring (Top-3)"| Context_Filter{"Top-K Selection"}
-        
-        Context_Filter -->|Final Context| LLM["🤖 GPT-3.5-turbo"]
-        User -->|Prompt| LLM
-        LLM --> Answer["📝 Answer"]
+    %% 1. 스케줄링 영역
+    subgraph Scheduling ["⏰ 주기적 실행 (Scheduling)"]
+        Timer("📅 Scheduler\n(Interval: 2~3 Days)") -->|Trigger| Crawler
     end
 
-    %% 데이터 수집 및 가공 영역
-    subgraph ETL_Pipeline ["⚙️ 데이터 파이프라인 (Batch Indexing)"]
-        Scheduler("⏰ Scheduler\nDaily Trigger") -->|Wake Up| Crawler
+    %% 2. 수집 영역
+    subgraph Collection ["📥 데이터 수집 (Multi-Format Crawling)"]
+        Crawler("🕷️ 통합 크롤러\n(BS4 + Requests)") -->|1. Visit Page| WebPage("🏫 공지사항 페이지")
         
-        subgraph Collection ["Data Collection"]
-            Web["🏫 학교 공지사항\nWebsite"] -->|HTTP Request| Crawler["🕷️ Web Crawler"]
-        end
-        
-        Crawler -->|Raw HTML| Dedup{"♻️ 중복 검사\n(Check DB)"}
-        
-        Dedup -->|New Post| Cleaner["🧹 Data Cleaner"]
-        Dedup -->|Exists| Skip["⛔ Skip"]
-        
-        Cleaner -->|Clean Text| Splitter["📄 Text Splitter"]
-        
-        Splitter -->|Chunks| Embed["🧠 BGE-M3\n(Local Embedding)"]
-        Embed -->|Upsert| FAISS
+        WebPage -->|Scrape Text| HTML_Content("📄 HTML 본문\n(Text)")
+        WebPage -->|Download Files| Attachments("📎 첨부 파일\n(.docx, .pdf)")
     end
 
-    %% 스타일링 (BGE 모델 강조)
-    style Reranker fill:#ffcc00,stroke:#333,stroke-width:2px,color:black
-    style Embed fill:#ffcc00,stroke:#333,stroke-width:2px,color:black
-    style Scheduler fill:#f9f,stroke:#333,stroke-width:2px
-    style Crawler fill:#bbf,stroke:#333,stroke-width:2px
-    style Dedup fill:#ff9,stroke:#333,stroke-width:2px
+    %% 3. 전처리 및 로딩 영역
+    subgraph Processing ["🛠️ 데이터 가공 (File Loading)"]
+        Attachments --".docx / .doc"--> WordLoader("📝 Word Loader\n(Unstructured / Docx2txt)")
+        Attachments --".pdf"--> PDFLoader("📑 PyPDFLoader")
+        HTML_Content --> HTMLLoader("🌐 HTML Cleaner")
+        
+        WordLoader --> MergedData
+        PDFLoader --> MergedData
+        HTMLLoader --> MergedData("📦 통합 텍스트 데이터")
+    end
+
+    %% 4. 중복 제거 및 저장 영역
+    subgraph Storage ["💾 임베딩 및 저장 (Upsert)"]
+        MergedData --> HashCheck{"♻️ 변경 감지\n(Check File Hash)"}
+        
+        HashCheck --"New / Updated"--> Splitter("✂️ Text Splitter")
+        HashCheck --"No Change"--> Skip("⛔ Skip")
+        
+        Splitter --> Embed("🧠 BGE-M3\n(Local Embedding)")
+        Embed -->|Upsert| FAISS("🗄️ FAISS Index\n(Update)")
+    end
+
+    %% 스타일링
+    style Timer fill:#f9f,stroke:#333,stroke-width:2px
+    style Attachments fill:#ffcc99,stroke:#333,stroke-width:2px
+    style WordLoader fill:#99ccff,stroke:#333,stroke-width:2px
     style FAISS fill:#ddd,stroke:#333,stroke-width:4px
 
 ```
