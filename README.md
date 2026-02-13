@@ -91,64 +91,90 @@ flowchart TD
 ```
 ```mermaid
 flowchart TD
-    %% =========================
-    %% 1. 스케줄링 영역
-    %% =========================
-    subgraph Scheduling ["⏰ Scheduling (Every 2~3 Days)"]
-        SCH(📅 Scheduler) -->|Trigger| CRAWLER
+
+%% =========================
+%% Users & Client
+%% =========================
+USER[User] --> APP[Android App]
+APP -->|HTTPS JSON| API[Flask API Server - AWS EC2]
+
+%% =========================
+%% Online Inference (RAG)
+%% =========================
+subgraph ONLINE["🔍 Online Inference (RAG)"]
+    API --> PRE[Query Preprocess - KO/EN detect + slang mapping]
+    PRE --> QEMB[Query Embedding]
+    QEMB --> RET[FAISS Retrieve TopK]
+    RET --> RER[Reranker - Re-rank TopN]
+    RER --> CTX[Context Builder]
+    CTX --> LLM[LLM - GPT-3.5-turbo]
+    LLM --> ANS[Answer]
+    ANS --> API
+end
+
+%% =========================
+%% Shared Vector Store
+%% =========================
+FAISS[(FAISS Vector Index)]
+RET -->|load| FAISS
+
+%% =========================
+%% Offline Update Pipeline
+%% =========================
+subgraph OFFLINE["⚙️ Offline FAISS Update (Every 2~3 Days)"]
+
+    subgraph SCHED["⏰ Scheduling"]
+        SCH[Scheduler] --> CRAWL
     end
 
-    %% =========================
-    %% 2. 수집 및 감지 영역
-    %% =========================
-    subgraph Collection ["📥 Collection & Detection"]
-        CRAWLER[🕷️ Crawler\n(BS4 + Requests)] -->|1. Visit Board| PAGE[INU Website\nNotice Board]
-        
-        PAGE -->|2. Extract Date| DATE(📝 Post Date)
-        
-        %% 날짜 비교 로직
-        DATE --> CMP{"📅 New Post?\n(Date > Last_DB_Date)"}
-        
-        %% 분기 처리
-        CMP -- No --> SKIP[⛔ Skip\n(No Update needed)]
-        CMP -- Yes --> DOWNLOAD[📥 Download Content]
+    subgraph COLLECT["📥 Collection"]
+        CRAWL[Crawler BS4 + Requests] --> PAGE[INU Website Boards]
+        PAGE --> DATE[Post or Modified Date]
+        PAGE --> FILES[Attachments PDF DOCX HWP]
+        PAGE --> HTML[HTML Content]
     end
 
-    %% =========================
-    %% 3. 전처리 영역 (HWP 포함)
-    %% =========================
-    subgraph Processing ["🛠️ File Loading & Cleaning"]
-        DOWNLOAD -->|Parse| HTML[HTML Body]
-        DOWNLOAD -->|Download| FILES[Attachments]
-        
-        %% 파일별 로더 분류
-        FILES -- .pdf --> PDF[📄 PyPDFLoader]
-        FILES -- .docx --> DOCX[📝 Docx2txtLoader]
-        FILES -- .hwp --> HWP[🇰🇷 HWP Loader\n(hwp5txt)]
-        
-        HTML --> HTMLC[🌐 HTML Cleaner]
-        
-        %% 텍스트 병합
-        PDF --> MERGE(📦 Merged Text Data)
-        DOCX --> MERGE
-        HWP --> MERGE
-        HTMLC --> MERGE
+    subgraph DETECT["📅 Change Detection"]
+        DATE --> CMP{Is date newer than DB}
+        CMP -->|Yes| PROC
+        CMP -->|No| SKIP[Skip]
     end
 
-    %% =========================
-    %% 4. 임베딩 및 저장
-    %% =========================
-    subgraph Storage ["💾 Vectorization & Upsert"]
-        MERGE --> SPLIT[✂️ Text Splitter]
-        SPLIT --> EMB[🧠 Embedding Model\n(BGE-M3)]
-        EMB -->|Add / Update| FAISS[(🗄️ FAISS Index)]
+    subgraph PROCESS["🛠 Processing"]
+        FILES --> WORD[Word Loader]
+        FILES --> PDF[PDF Loader]
+        HTML --> HTMLC[HTML Cleaner]
+        WORD --> MERGE
+        PDF --> MERGE
+        HTMLC --> MERGE[Merge Text]
+        PROC --> MERGE
     end
 
-    %% 스타일링
-    style SCH fill:#f9f,stroke:#333,stroke-width:2px
-    style CMP fill:#ff9,stroke:#333,stroke-width:2px
-    style HWP fill:#aaddff,stroke:#333,stroke-width:2px
-    style FAISS fill:#ddd,stroke:#333,stroke-width:4px
+    subgraph STORE["💾 Embedding & Update"]
+        MERGE --> SPLIT[Text Splitter]
+        SPLIT --> EMB[Embedding Model]
+        EMB -->|Upsert| FAISS
+    end
+end
+
+%% =========================
+%% Observability
+%% =========================
+subgraph OBS["📈 Observability"]
+    API --> TRACE[LangSmith Tracing]
+    TRACE --> EVAL[Auto Evaluator]
+end
+
+%% =========================
+%% Styles
+%% =========================
+style FAISS fill:#ddd,stroke:#333,stroke-width:4px
+style SCH fill:#f9f,stroke:#333,stroke-width:2px
+style CRAWL fill:#bbf,stroke:#333,stroke-width:2px
+style CMP fill:#ff9,stroke:#333,stroke-width:2px
+style LLM fill:#fdd,stroke:#333,stroke-width:2px
+style API fill:#eef,stroke:#333,stroke-width:2px
+
 ```
 
 ### 🔄 Batch Indexing 파이프라인 상세
