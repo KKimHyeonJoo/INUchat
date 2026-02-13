@@ -92,47 +92,45 @@ flowchart TD
 ```mermaid
 flowchart TD
     %% 사용자 및 추론 영역
-    subgraph Inference_Phase["검색 및 답변 (Real-time Inference)"]
-        USER[User] -->|Question| APP[Android App]
-        APP -->|HTTPS JSON| API[Flask API Server - AWS EC2]
-
-        API --> PRE[Query Preprocess - KO/EN detect - slang/abbrev mapping]
-        PRE --> RET[Retriever - TopK similarity search]
-        RET --> FAISS[(FAISS Vector Store)]
-        FAISS --> RER[Reranker - TopN re-rank]
-        RER --> PROMPT[Prompt Builder - context + system rules]
-        PROMPT --> LLM[LLM - GPT-3.5-turbo]
-        LLM --> ANSWER[Answer]
+    subgraph Inference_Phase ["🔍 2-Stage 검색 (BGE-M3 + Reranker)"]
+        User(👤 User) -->|Question| Retriever
+        Retriever -->|1. Wide Search (Top-30)| FAISS[(🗄️ FAISS Vector Store)]
+        
+        FAISS -->|Candidates| Reranker["⚖️ BGE-Reranker-V2\n(Cross-Encoder)"]
+        
+        Reranker -->|2. Re-scoring (Top-3)| Context_Filter{Top-K Selection}
+        
+        Context_Filter -->|Final Context| LLM[🤖 GPT-3.5-turbo]
+        User -->|Prompt| LLM
+        LLM --> Answer[📝 Answer]
     end
 
     %% 데이터 수집 및 가공 영역
-    subgraph ETL_Pipeline["데이터 파이프라인 (Daily Index Update)"]
-        SCH[Scheduler - Daily Trigger] -->|Wake Up| CR[Crawler - Website PDF/HTML]
-        CR --> DIFF{Change Detect - hash/DB/last-modified}
-
-        DIFF -->|New or Updated| LOAD[Loader - PDF PyPDFLoader / HTML Parser]
-        DIFF -->|No Change| SKIP[Skip]
-
-        LOAD --> CLEAN[Data Cleaner - tag removal / normalize]
-        CLEAN --> SPLIT[Text Splitter - chunking]
-        SPLIT --> EMB[Embeddings]
-        EMB -->|Upsert or Rebuild| FAISS
+    subgraph ETL_Pipeline ["⚙️ 데이터 파이프라인 (Batch Indexing)"]
+        Scheduler("⏰ Scheduler\nDaily Trigger") -->|Wake Up| Crawler
+        
+        subgraph Collection ["Data Collection"]
+            Web["🏫 학교 공지사항\nWebsite"] -->|HTTP Request| Crawler["🕷️ Web Crawler"]
+        end
+        
+        Crawler -->|Raw HTML| Dedup{"♻️ 중복 검사\n(Check DB)"}
+        
+        Dedup -->|New Post| Cleaner["🧹 Data Cleaner"]
+        Dedup -->|Exists| Skip["⛔ Skip"]
+        
+        Cleaner -->|Clean Text| Splitter["📄 Text Splitter"]
+        
+        Splitter -->|Chunks| Embed["🧠 BGE-M3\n(Local Embedding)"]
+        Embed -->|Upsert| FAISS
     end
 
-    %% 관측/평가 영역
-    subgraph Observability["관측/평가 (LangSmith)"]
-        API --> TRACE[Tracing]
-        TRACE --> EVAL[Auto Evaluator - Answer/Retrieval Score]
-    end
-
-    %% 스타일링
-    style SCH fill:#f9f,stroke:#333,stroke-width:2px
-    style CR fill:#bbf,stroke:#333,stroke-width:2px
-    style DIFF fill:#ff9,stroke:#333,stroke-width:2px
+    %% 스타일링 (BGE 모델 강조)
+    style Reranker fill:#ffcc00,stroke:#333,stroke-width:2px,color:black
+    style Embed fill:#ffcc00,stroke:#333,stroke-width:2px,color:black
+    style Scheduler fill:#f9f,stroke:#333,stroke-width:2px
+    style Crawler fill:#bbf,stroke:#333,stroke-width:2px
+    style Dedup fill:#ff9,stroke:#333,stroke-width:2px
     style FAISS fill:#ddd,stroke:#333,stroke-width:4px
-    style RER fill:#cfc,stroke:#333,stroke-width:2px
-    style LLM fill:#fdd,stroke:#333,stroke-width:2px
-    style API fill:#eef,stroke:#333,stroke-width:2px
 
 ```
 
