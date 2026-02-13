@@ -94,57 +94,61 @@ flowchart TD
     %% =========================
     %% 1. 스케줄링 영역
     %% =========================
-    subgraph Scheduling["⏰ Scheduling (Every 2~3 Days)"]
-        SCH[Scheduler] -->|Trigger| CRAWLER
+    subgraph Scheduling ["⏰ Scheduling (Every 2~3 Days)"]
+        SCH(📅 Scheduler) -->|Trigger| CRAWLER
     end
 
     %% =========================
-    %% 2. 수집 영역
+    %% 2. 수집 및 감지 영역
     %% =========================
-    subgraph Collection["📥 Data Collection"]
-        CRAWLER[Crawler BS4 + Requests] -->|Visit| PAGE[INU Website Board]
-        PAGE -->|Extract date| DATE[Post date or modified date]
-        PAGE -->|Download| FILES[Attachments PDF DOCX HWP]
-        PAGE -->|Scrape| HTML[HTML content]
+    subgraph Collection ["📥 Collection & Detection"]
+        CRAWLER[🕷️ Crawler\n(BS4 + Requests)] -->|1. Visit Board| PAGE[INU Website\nNotice Board]
+        
+        PAGE -->|2. Extract Date| DATE(📝 Post Date)
+        
+        %% 날짜 비교 로직
+        DATE --> CMP{"📅 New Post?\n(Date > Last_DB_Date)"}
+        
+        %% 분기 처리
+        CMP -- No --> SKIP[⛔ Skip\n(No Update needed)]
+        CMP -- Yes --> DOWNLOAD[📥 Download Content]
     end
 
     %% =========================
-    %% 3. 날짜 기반 변경 감지
+    %% 3. 전처리 영역 (HWP 포함)
     %% =========================
-    subgraph Detection["📅 Change Detection"]
-        DATE --> CMP{Is date newer than DB}
-        CMP -->|Yes| PROCESS
-        CMP -->|No| SKIP[Skip]
+    subgraph Processing ["🛠️ File Loading & Cleaning"]
+        DOWNLOAD -->|Parse| HTML[HTML Body]
+        DOWNLOAD -->|Download| FILES[Attachments]
+        
+        %% 파일별 로더 분류
+        FILES -- .pdf --> PDF[📄 PyPDFLoader]
+        FILES -- .docx --> DOCX[📝 Docx2txtLoader]
+        FILES -- .hwp --> HWP[🇰🇷 HWP Loader\n(hwp5txt)]
+        
+        HTML --> HTMLC[🌐 HTML Cleaner]
+        
+        %% 텍스트 병합
+        PDF --> MERGE(📦 Merged Text Data)
+        DOCX --> MERGE
+        HWP --> MERGE
+        HTMLC --> MERGE
     end
 
     %% =========================
-    %% 4. 전처리 영역
+    %% 4. 임베딩 및 저장
     %% =========================
-    subgraph Processing["🛠 File Loading and Cleaning"]
-        FILES --> WORD[Word Loader]
-        FILES --> PDF[PDF Loader]
-        HTML --> HTMLC[HTML Cleaner]
-        WORD --> MERGE
-        PDF --> MERGE
-        HTMLC --> MERGE[Merge text]
-        PROCESS --> MERGE
+    subgraph Storage ["💾 Vectorization & Upsert"]
+        MERGE --> SPLIT[✂️ Text Splitter]
+        SPLIT --> EMB[🧠 Embedding Model\n(BGE-M3)]
+        EMB -->|Add / Update| FAISS[(🗄️ FAISS Index)]
     end
 
-    %% =========================
-    %% 5. 임베딩 및 저장
-    %% =========================
-    subgraph Storage["💾 Embedding and FAISS Update"]
-        MERGE --> SPLIT[Text Splitter]
-        SPLIT --> EMB[Embedding Model]
-        EMB -->|Upsert| FAISS[(FAISS Index)]
-    end
-
-    %% 스타일
+    %% 스타일링
     style SCH fill:#f9f,stroke:#333,stroke-width:2px
-    style FILES fill:#ffcc99,stroke:#333,stroke-width:2px
-    style WORD fill:#99ccff,stroke:#333,stroke-width:2px
+    style CMP fill:#ff9,stroke:#333,stroke-width:2px
+    style HWP fill:#aaddff,stroke:#333,stroke-width:2px
     style FAISS fill:#ddd,stroke:#333,stroke-width:4px
-
 ```
 
 ### 🔄 Batch Indexing 파이프라인 상세
